@@ -1,16 +1,28 @@
 @import "tailwindcss";
 
+@theme {
+  --color-slate-900: #131a3e;
+  --color-slate-950: #0d122b;
+  --color-slate-800: #1c2452;
+  --color-owl: #131a3e;
+  --color-owl-dark: #0d122b;
+  --color-owl-hover: #1c2452;
+  --color-owl-gold: #f6a71a;
+  --color-owl-cream: #fbf5ec;
+}
+
 @layer base {
   :root {
     --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    --color-owl-primary: #131a3e;
   }
 
   body {
     font-family: var(--font-sans);
     background-color: #f8fafc;
-    color: #0f172a;
+    color: #131a3e;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 

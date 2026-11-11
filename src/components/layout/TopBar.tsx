@@ -14,12 +14,17 @@ export function TopBar() {
   return (
     <header className="bg-white border-b border-slate-200">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-8 px-5 sm:px-8 py-4">
-        {/* Zone 1: Single text element wordmark */}
+        {/* Zone 1: Owl Logo + Wordmark */}
         <Link
           to="/"
-          className="font-display text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
+          className="font-display text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 flex items-center gap-2.5 hover:opacity-90 transition-opacity"
         >
-          Visualdy
+          <img
+            src="/owl-logo.png"
+            alt="Logo Coruja Wise Owl"
+            className="w-8 h-8 rounded-lg object-contain shrink-0"
+          />
+          <span>Visualdy</span>
         </Link>
 
         {/* Zone 2: 4 clean single-line navigation links */}

@@ -49,9 +49,10 @@ export function HomePage() {
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
         <div className="lg:col-span-5 flex flex-col justify-between gap-8">
           <div className="space-y-5">
-            <p className="text-xs font-medium text-sky-700">
-              Aprendizado visual · Direto ao ponto · Sem distrações
-            </p>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 text-xs font-medium text-slate-800 border border-slate-200 w-fit">
+              <img src="/owl-logo.png" alt="Coruja Wise Owl" className="w-4 h-4 object-contain" />
+              <span>Aprendizado visual · Direto ao ponto · Sem distrações</span>
+            </div>
             <h1
               style={{ textWrap: 'balance' }}
               className="font-display text-3xl sm:text-4xl lg:text-[2.6rem] font-bold tracking-tight text-slate-900 leading-[1.15]"
