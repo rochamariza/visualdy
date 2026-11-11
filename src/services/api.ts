@@ -7,6 +7,7 @@ import type {
   TopicSummary,
   VisualArchetype,
 } from '../types/visual';
+import { generateClientVisualTopic } from '../utils/visualEngineFallback';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
@@ -66,17 +67,22 @@ export const visualdyApi = {
     });
   },
 
-  generateVisualExplanation(input: {
+  async generateVisualExplanation(input: {
     concept: string;
     preferred_archetype?: VisualArchetype | null;
     difficulty?: DifficultyLevel;
     save_to_catalog?: boolean;
     add_to_study_plan?: boolean;
   }): Promise<TopicDetail> {
-    return requestJson<TopicDetail>('/api/visual-engine/generate', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
+    try {
+      return await requestJson<TopicDetail>('/api/visual-engine/generate', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+    } catch (err) {
+      console.warn('[Visualdy Engine Fallback Ativo]', err);
+      return generateClientVisualTopic(input);
+    }
   },
 
   getStudyPlan(): Promise<StudyPlanResponse> {

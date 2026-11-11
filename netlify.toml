@@ -8,6 +8,12 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Rota para o Gerador Visual (Netlify Function)
+[[redirects]]
+  from = "/api/visual-engine/generate"
+  to = "/.netlify/functions/visual-engine-generate"
+  status = 200
+
 # Rota de proxy para a Netlify Function do Gemini (API Serverless)
 [[redirects]]
   from = "/api/gemini"
