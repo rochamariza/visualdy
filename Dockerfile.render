@@ -1,0 +1,23 @@
+# Multi-stage Dockerfile para Visualdy (React + Vite + FastAPI Python)
+# 1. Build do Frontend
+FROM node:20-slim AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# 2. Imagem final enxuta em Python com FastAPI
+FROM python:3.11-slim
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend ./backend
+COPY --from=builder /app/dist ./dist
+
+ENV PORT=8000
+EXPOSE 8000
+
+CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

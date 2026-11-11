@@ -1,0 +1,6 @@
+{
+  "name": "Visualdy",
+  "description": "Plataforma interativa que explica conceitos de computação e programação de forma visual, direta ao ponto e sem distrações.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
