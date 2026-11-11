@@ -95,9 +95,8 @@ visualdy/
 │   └── index.css                  # Folha global de estilos com Tailwind CSS v4
 ├── netlify/                       # Serverless Functions do Netlify
 │   └── functions/
-│       └── gemini.ts              # Função serverless da Gemini API (@google/genai)
-├── Dockerfile.render              # Container Docker multi-stage para o Render
-├── render.yaml                    # Blueprint de deploy em 1 clique no Render
+│       ├── gemini.ts              # Função serverless da Gemini API (@google/genai)
+│       └── visual-engine-generate.ts # Função serverless do Motor Visual
 ├── netlify.toml                   # Configuração e redirecionamentos para o Netlify
 ├── requirements.txt               # Dependências Python (FastAPI, Uvicorn, Pydantic)
 ├── package.json                   # Dependências e scripts Node.js
@@ -167,39 +166,29 @@ Todas as rotas retornam JSON formatado e tipado:
 
 ---
 
-## 🌐 Guia de Deploy
+## 🌐 Guia de Deploy no Netlify
 
-### Opção A: Render (Full-Stack Unificado via Docker)
+O Visualdy está 100% configurado para rodar no **Netlify** de forma estática com funções serverless:
 
-O repositório já inclui o arquivo `Dockerfile.render` e o manifesto `render.yaml` prontos para deploy:
+1. **Importar o Projeto**:
+   - Acesse o [Netlify Dashboard](https://app.netlify.com/) e clique em **Add new site** > **Import an existing project**.
+   - Conecte o repositório do Visualdy no GitHub ou GitLab.
 
-1. Acesse o [Render Dashboard](https://dashboard.render.com/) e clique em **New +** > **Web Service**.
-2. Conecte o repositório do Visualdy.
-3. Selecione o ambiente **Docker**.
-4. Defina o campo **Dockerfile Path** como: `Dockerfile.render`.
-5. Escolha o plano **Free** e clique em **Create Web Service**.
-O Render compilará o frontend e inicializará o FastAPI servindo a API e a SPA unificadas em uma única porta com HTTPS gratuito.
+2. **Detecção Automática**:
+   - As configurações são lidas diretamente do arquivo `netlify.toml`:
+     - **Build command**: `npm run build`
+     - **Publish directory**: `dist`
+     - **Functions directory**: `netlify/functions`
 
----
-
-### Opção B: Netlify (Frontend + Gemini API Serverless)
-
-O arquivo `netlify.toml` e a função `netlify/functions/gemini.ts` já estão configurados:
-
-1. Acesse o [Netlify Dashboard](https://app.netlify.com/) e clique em **Add new site** > **Import an existing project**.
-2. Conecte o repositório do Visualdy.
-3. As configurações serão detectadas automaticamente pelo `netlify.toml`:
-   - **Build command**: `npm run build`
-   - **Publish directory**: `dist`
-   - **Functions directory**: `netlify/functions`
-4. **Conectar a API do Gemini no Netlify**:
+3. **Configurar a API do Gemini (Opcional para IA)**:
    - Vá em **Site configuration** > **Environment variables** > **Add a variable**.
    - **Key**: `GEMINI_API_KEY`
-   - **Value**: Sua chave de API do Gemini obtida no [Google AI Studio](https://aistudio.google.com/).
-   - *(Opcional)*: Se quiser integrar com o backend Python no Render, adicione também `VITE_API_URL` com a URL do seu backend.
-5. Clique em **Deploy Visualdy**.
+   - **Value**: Sua chave de API obtida no [Google AI Studio](https://aistudio.google.com/).
+   - **Scopes**: Marque *Builds* e *Functions*.
 
-A rota `/api/gemini` será tratada de forma serverless e segura pela Netlify Function sem expor sua chave de API ao navegador!
+4. **Publicar**:
+   - Clique em **Deploy Visualdy**.
+   - O Netlify compilará a SPA do React e ativará as funções serverless para `/api/gemini` e `/api/visual-engine/generate` automaticamente!
 
 ---
 
