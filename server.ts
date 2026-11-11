@@ -143,6 +143,49 @@ async function startServer(): Promise<void> {
     });
   });
 
+  // Endpoint local para Gemini AI (espelho da Netlify Function)
+  app.post('/api/gemini', async (req: Request, res: Response) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      res.status(500).json({
+        error: 'GEMINI_API_KEY não configurada no ambiente.',
+      });
+      return;
+    }
+
+    try {
+      const prompt = req.body?.prompt || req.body?.concept;
+      if (!prompt || typeof prompt !== 'string') {
+        res.status(400).json({ error: 'Informe um campo "prompt" ou "concept".' });
+        return;
+      }
+
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: {
+          systemInstruction:
+            'Você é o assistente didático do Visualdy. Explique conceitos de computação e algoritmos de forma direta, visual, passo a passo e intuitiva.',
+        },
+      });
+
+      res.status(200).json({ text: response.text ?? '' });
+    } catch (err: any) {
+      console.error('[Gemini Server Error]', err);
+      res.status(500).json({ error: err?.message || 'Erro ao processar chamada com a API do Gemini' });
+    }
+  });
+
   // Proxy /api/* to the Python FastAPI backend with quick retry for cold starts
   app.use('/api', async (req: Request, res: Response) => {
     try {

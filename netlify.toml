@@ -3,9 +3,16 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "20"
+
+# Rota de proxy para a Netlify Function do Gemini (API Serverless)
+[[redirects]]
+  from = "/api/gemini"
+  to = "/.netlify/functions/gemini"
+  status = 200
 
 # Regra SPA: Redireciona todas as rotas de navegação para index.html com status 200
 [[redirects]]

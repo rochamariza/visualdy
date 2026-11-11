@@ -93,9 +93,12 @@ visualdy/
 │   ├── App.tsx                    # Rotas principais da aplicação
 │   ├── main.tsx                   # Ponto de entrada do React
 │   └── index.css                  # Folha global de estilos com Tailwind CSS v4
+├── netlify/                       # Serverless Functions do Netlify
+│   └── functions/
+│       └── gemini.ts              # Função serverless da Gemini API (@google/genai)
 ├── Dockerfile.render              # Container Docker multi-stage para o Render
 ├── render.yaml                    # Blueprint de deploy em 1 clique no Render
-├── vercel.json                    # Regras de reescrita SPA para deploy na Vercel
+├── netlify.toml                   # Configuração e redirecionamentos para o Netlify
 ├── requirements.txt               # Dependências Python (FastAPI, Uvicorn, Pydantic)
 ├── package.json                   # Dependências e scripts Node.js
 ├── server.ts                      # Servidor Full-Stack Node.js (Proxy + SPA Handler)
@@ -179,39 +182,24 @@ O Render compilará o frontend e inicializará o FastAPI servindo a API e a SPA 
 
 ---
 
-### Opção B: Vercel (Frontend) + Render (Backend)
+### Opção B: Netlify (Frontend + Gemini API Serverless)
 
-Caso prefira a CDN global da Vercel para o frontend:
-
-1. **Backend no Render**:
-   - Crie um Web Service com runtime **Python 3**.
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-   - Copie a URL pública gerada (ex: `https://visualdy-api.onrender.com`).
-
-2. **Frontend na Vercel**:
-   - Conecte o repositório na [Vercel](https://vercel.com/).
-   - Framework Preset: **Vite**.
-   - Build Command: `npm run build`.
-   - Output Directory: `dist`.
-   - Em **Environment Variables**, adicione:
-     - `VITE_API_URL` = `https://visualdy-api.onrender.com`
-   - Clique em **Deploy**. *(O arquivo `vercel.json` já configurado garante que as rotas SPA funcionem sem erro 404)*.
-
----
-
-### Opção C: Netlify (Frontend) + Render (Backend)
-
-O arquivo `netlify.toml` já está configurado na raiz com redirecionamento SPA e cabeçalhos de cache:
+O arquivo `netlify.toml` e a função `netlify/functions/gemini.ts` já estão configurados:
 
 1. Acesse o [Netlify Dashboard](https://app.netlify.com/) e clique em **Add new site** > **Import an existing project**.
 2. Conecte o repositório do Visualdy.
-3. As configurações serão detectadas automaticamente a partir do `netlify.toml`:
+3. As configurações serão detectadas automaticamente pelo `netlify.toml`:
    - **Build command**: `npm run build`
    - **Publish directory**: `dist`
-4. Na aba **Site configuration** > **Environment variables**, adicione:
-   - `VITE_API_URL` = `https://visualdy-api.onrender.com` (URL do seu backend no Render).
+   - **Functions directory**: `netlify/functions`
+4. **Conectar a API do Gemini no Netlify**:
+   - Vá em **Site configuration** > **Environment variables** > **Add a variable**.
+   - **Key**: `GEMINI_API_KEY`
+   - **Value**: Sua chave de API do Gemini obtida no [Google AI Studio](https://aistudio.google.com/).
+   - *(Opcional)*: Se quiser integrar com o backend Python no Render, adicione também `VITE_API_URL` com a URL do seu backend.
 5. Clique em **Deploy Visualdy**.
+
+A rota `/api/gemini` será tratada de forma serverless e segura pela Netlify Function sem expor sua chave de API ao navegador!
 
 ---
 
