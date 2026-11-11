@@ -8,6 +8,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38bdf8?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-8.x-646cff?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Netlify](https://img.shields.io/badge/Netlify-Ready-00C7B7?style=for-the-badge&logo=netlify&logoColor=white)](https://www.netlify.com/)
 
 ---
 
@@ -196,6 +197,21 @@ Caso prefira a CDN global da Vercel para o frontend:
    - Em **Environment Variables**, adicione:
      - `VITE_API_URL` = `https://visualdy-api.onrender.com`
    - Clique em **Deploy**. *(O arquivo `vercel.json` já configurado garante que as rotas SPA funcionem sem erro 404)*.
+
+---
+
+### Opção C: Netlify (Frontend) + Render (Backend)
+
+O arquivo `netlify.toml` já está configurado na raiz com redirecionamento SPA e cabeçalhos de cache:
+
+1. Acesse o [Netlify Dashboard](https://app.netlify.com/) e clique em **Add new site** > **Import an existing project**.
+2. Conecte o repositório do Visualdy.
+3. As configurações serão detectadas automaticamente a partir do `netlify.toml`:
+   - **Build command**: `npm run build`
+   - **Publish directory**: `dist`
+4. Na aba **Site configuration** > **Environment variables**, adicione:
+   - `VITE_API_URL` = `https://visualdy-api.onrender.com` (URL do seu backend no Render).
+5. Clique em **Deploy Visualdy**.
 
 ---
 
