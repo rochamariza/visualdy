@@ -104,6 +104,16 @@ export function StudyPlanPage() {
         </div>
       </div>
 
+      {/* LocalStorage Persistence Banner */}
+      <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-sky-950">
+        <div className="flex items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-xs"></span>
+          <span>
+            <strong>Armazenamento Local Ativo:</strong> Seus tópicos gerados, anotações e progresso estão salvos localmente no seu navegador. Você pode fechar a janela ou recarregar a página sem perder nada.
+          </span>
+        </div>
+      </div>
+
       {/* Filter Tabs + Queue List */}
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -202,6 +212,14 @@ export function StudyPlanPage() {
                           <span>{entry.topic.difficulty}</span>
                           <span aria-hidden="true">·</span>
                           <span>{entry.topic.read_minutes} min</span>
+                          {typeof entry.last_step_viewed === 'number' && entry.last_step_viewed > 0 && (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="text-sky-700 font-medium">
+                                Passo {entry.last_step_viewed + 1} de {entry.topic.step_count}
+                              </span>
+                            </>
+                          )}
                         </div>
                         <h3 className="font-display text-base font-semibold text-slate-900 mt-0.5">
                           <Link
@@ -271,7 +289,13 @@ export function StudyPlanPage() {
                         to={`/assunto/${entry.topic_slug}`}
                         className="min-h-[40px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 whitespace-nowrap transition-colors"
                       >
-                        <span>Estudar</span>
+                        <span>
+                          {entry.completed
+                            ? 'Revisar'
+                            : typeof entry.last_step_viewed === 'number' && entry.last_step_viewed > 0
+                            ? 'Continuar'
+                            : 'Estudar'}
+                        </span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>

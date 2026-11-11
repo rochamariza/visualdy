@@ -7,13 +7,29 @@ import type {
 
 const CUSTOM_TOPICS_KEY = 'visualdy_custom_topics_v1';
 const STUDY_PLAN_KEY = 'visualdy_study_plan_v1';
+const STEP_PROGRESS_KEY = 'visualdy_step_progress_v1';
 
-// Seed default initial study items so the user always has rich content on first visit
-const DEFAULT_INITIAL_STUDY_SLUGS = [
-  'variaveis-e-memoria',
-  'busca-binaria',
-  'pilha-e-fila',
-];
+export function getStoredStepProgress(slug: string): number {
+  try {
+    const raw = localStorage.getItem(STEP_PROGRESS_KEY);
+    if (!raw) return 0;
+    const map = JSON.parse(raw);
+    return typeof map[slug] === 'number' ? map[slug] : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function saveStoredStepProgress(slug: string, stepIndex: number): void {
+  try {
+    const raw = localStorage.getItem(STEP_PROGRESS_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    map[slug] = stepIndex;
+    localStorage.setItem(STEP_PROGRESS_KEY, JSON.stringify(map));
+  } catch (err) {
+    console.warn('[Storage Error] Não foi possível salvar progresso do passo:', err);
+  }
+}
 
 export function getStoredCustomTopics(): Record<string, TopicDetail> {
   try {
@@ -52,6 +68,51 @@ export function saveStoredStudyEntries(entries: StudyPlanEntry[]): void {
   } catch (err) {
     console.warn('[Storage Error] Não foi possível salvar plano de estudos:', err);
   }
+}
+
+export function mergeServerAndLocalEntries(
+  serverEntries: StudyPlanEntry[],
+  localEntries: StudyPlanEntry[],
+): StudyPlanEntry[] {
+  // If user has local entries, local user state (completed, notes, step, priority) is authoritative
+  if (localEntries.length === 0 && serverEntries.length > 0) {
+    saveStoredStudyEntries(serverEntries);
+    return serverEntries;
+  }
+
+  const localMap = new Map<string, StudyPlanEntry>();
+  localEntries.forEach((entry) => localMap.set(entry.topic_slug, entry));
+
+  const result: StudyPlanEntry[] = [];
+  const processedSlugs = new Set<string>();
+
+  // 1. Preserve all local entries in user's preferred order
+  localEntries.forEach((loc) => {
+    const srv = serverEntries.find((s) => s.topic_slug === loc.topic_slug);
+    result.push({
+      ...loc,
+      topic: srv?.topic || loc.topic,
+      completed: loc.completed ?? (srv?.completed || false),
+      last_step_viewed: loc.last_step_viewed ?? (srv?.last_step_viewed || 0),
+      notes: loc.notes !== undefined && loc.notes !== '' ? loc.notes : (srv?.notes || ''),
+    });
+    processedSlugs.add(loc.topic_slug);
+  });
+
+  // 2. Append any server entries that aren't in local store yet
+  let nextPriority = result.length + 1;
+  serverEntries.forEach((srv) => {
+    if (!processedSlugs.has(srv.topic_slug)) {
+      result.push({
+        ...srv,
+        priority: nextPriority++,
+      });
+      processedSlugs.add(srv.topic_slug);
+    }
+  });
+
+  saveStoredStudyEntries(result);
+  return result;
 }
 
 export function addTopicToStudyStore(topic: TopicSummary | TopicDetail): StudyPlanEntry[] {

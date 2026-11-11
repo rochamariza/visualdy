@@ -12,8 +12,11 @@ import {
   buildStudyPlanResponse,
   getStoredCustomTopics,
   getStoredStudyEntries,
+  mergeServerAndLocalEntries,
   reorderStudyStore,
   saveStoredCustomTopic,
+  saveStoredStepProgress,
+  saveStoredStudyEntries,
   toggleTopicInStudyStore,
   updateStudyItemInStore,
 } from '../utils/localStudyStore';
@@ -148,33 +151,23 @@ export const visualdyApi = {
       saveStoredCustomTopic(topic);
     }
 
-    // Register in study plan
+    // Register in study plan and record initial step progress
     if (input.add_to_study_plan !== false) {
       addTopicToStudyStore(topic);
+      saveStoredStepProgress(topic.slug, 0);
     }
 
     return topic;
   },
 
   async getStudyPlan(): Promise<StudyPlanResponse> {
+    const localEntries = getStoredStudyEntries();
     try {
       const serverRes = await requestJson<StudyPlanResponse>('/api/study-plan');
-      // Merge server entries with local store entries
-      const localEntries = getStoredStudyEntries();
-      const map = new Map<string, StudyPlanEntry>();
-
-      serverRes.items.forEach((item) => map.set(item.topic_slug, item));
-      localEntries.forEach((item) => {
-        if (!map.has(item.topic_slug)) {
-          map.set(item.topic_slug, item);
-        }
-      });
-
-      const merged = Array.from(map.values()).sort((a, b) => a.priority - b.priority);
+      const merged = mergeServerAndLocalEntries(serverRes.items || [], localEntries);
       return buildStudyPlanResponse(merged);
     } catch (err) {
       console.warn('[Study Plan Local Fallback]', err);
-      const localEntries = getStoredStudyEntries();
       return buildStudyPlanResponse(localEntries);
     }
   },
@@ -182,6 +175,11 @@ export const visualdyApi = {
   async toggleStudyTopic(
     topicSlug: string,
   ): Promise<{ selected: boolean; topic_slug: string; items: StudyPlanEntry[] }> {
+    // 1. Immediately toggle in localStorage
+    const allTopics = await this.getTopics();
+    const localRes = toggleTopicInStudyStore(topicSlug, allTopics);
+
+    // 2. Best-effort server sync
     try {
       const serverRes = await requestJson<{ selected: boolean; topic_slug: string; items: StudyPlanEntry[] }>(
         '/api/study-plan/toggle',
@@ -190,29 +188,33 @@ export const visualdyApi = {
           body: JSON.stringify({ topic_slug: topicSlug }),
         },
       );
-      // Sync local store
       if (serverRes.items) {
-        serverRes.items.forEach((entry) => addTopicToStudyStore(entry.topic));
+        mergeServerAndLocalEntries(serverRes.items, localRes.items);
       }
-      return serverRes;
     } catch (err) {
       console.warn('[Toggle Study Local Fallback]', err);
-      const topics = await this.getTopics();
-      const localRes = toggleTopicInStudyStore(topicSlug, topics);
-      return {
-        selected: localRes.selected,
-        topic_slug: topicSlug,
-        items: localRes.items,
-      };
     }
+
+    return {
+      selected: localRes.selected,
+      topic_slug: topicSlug,
+      items: localRes.items,
+    };
   },
 
   async updateStudyItem(
     topicSlug: string,
     patch: { completed?: boolean; last_step_viewed?: number; notes?: string },
   ): Promise<{ items: StudyPlanEntry[] }> {
+    // 1. Always update local storage first so user never loses progress
+    const updated = updateStudyItemInStore(topicSlug, patch);
+    if (typeof patch.last_step_viewed === 'number') {
+      saveStoredStepProgress(topicSlug, patch.last_step_viewed);
+    }
+
+    // 2. Best-effort server sync
     try {
-      return await requestJson<{ items: StudyPlanEntry[] }>(
+      await requestJson<{ items: StudyPlanEntry[] }>(
         `/api/study-plan/${encodeURIComponent(topicSlug)}`,
         {
           method: 'PATCH',
@@ -220,22 +222,26 @@ export const visualdyApi = {
         },
       );
     } catch (err) {
-      console.warn('[Update Study Item Local Fallback]', err);
-      const updated = updateStudyItemInStore(topicSlug, patch);
-      return { items: updated };
+      console.warn('[Update Study Item Server Sync Skip]', err);
     }
+
+    return { items: updated };
   },
 
   async reorderStudyPlan(orderedSlugs: string[]): Promise<{ items: StudyPlanEntry[] }> {
+    // 1. Always reorder local storage first
+    const reordered = reorderStudyStore(orderedSlugs);
+
+    // 2. Best-effort server sync
     try {
-      return await requestJson<{ items: StudyPlanEntry[] }>('/api/study-plan/reorder', {
+      await requestJson<{ items: StudyPlanEntry[] }>('/api/study-plan/reorder', {
         method: 'PUT',
         body: JSON.stringify({ ordered_slugs: orderedSlugs }),
       });
     } catch (err) {
-      console.warn('[Reorder Study Local Fallback]', err);
-      const reordered = reorderStudyStore(orderedSlugs);
-      return { items: reordered };
+      console.warn('[Reorder Study Server Sync Skip]', err);
     }
+
+    return { items: reordered };
   },
 };

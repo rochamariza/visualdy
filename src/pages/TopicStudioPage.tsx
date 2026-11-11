@@ -12,6 +12,7 @@ import { VisualStage } from '../components/visualizers/VisualStage';
 import { useStudy } from '../context/StudyContext';
 import { visualdyApi } from '../services/api';
 import type { TopicDetail } from '../types/visual';
+import { getStoredStepProgress, saveStoredStepProgress } from '../utils/localStudyStore';
 import { clampStepIndex } from '../utils/studyLogic';
 
 export function TopicStudioPage() {
@@ -23,6 +24,7 @@ export function TopicStudioPage() {
     toggleTopicInStudy,
     markTopicCompleted,
     updateStepProgress,
+    saveStudyNote,
   } = useStudy();
 
   const [topic, setTopic] = useState<TopicDetail | null>(null);
@@ -32,13 +34,26 @@ export function TopicStudioPage() {
   const [focusMode, setFocusMode] = useState<boolean>(false);
   const [paramDraft, setParamDraft] = useState<Record<string, string | number>>({});
   const [simulating, setSimulating] = useState<boolean>(false);
+  const [personalNote, setPersonalNote] = useState<string>('');
+  const [noteSavedFeedback, setNoteSavedFeedback] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!topicSlug) return;
+    const existing = studyEntries.find((e) => e.topic_slug === topicSlug);
+    if (existing?.notes) {
+      setPersonalNote(existing.notes);
+    } else {
+      setPersonalNote('');
+    }
+  }, [topicSlug, studyEntries]);
 
   useEffect(() => {
     if (!topicSlug) return;
     let active = true;
     setLoading(true);
     setError(null);
-    setStepIndex(0);
+    const savedStep = getStoredStepProgress(topicSlug);
+    setStepIndex(savedStep);
 
     visualdyApi
       .getTopicDetail(topicSlug)
@@ -46,6 +61,8 @@ export function TopicStudioPage() {
         if (!active) return;
         setTopic(detail);
         setParamDraft(detail.active_params || {});
+        const safe = clampStepIndex(savedStep, detail.steps.length);
+        setStepIndex(safe);
       })
       .catch((err) => {
         if (!active) return;
@@ -67,24 +84,38 @@ export function TopicStudioPage() {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (e.key === 'ArrowRight') {
-        setStepIndex((prev) => clampStepIndex(prev + 1, topic.steps.length));
+        const next = clampStepIndex(stepIndex + 1, topic.steps.length);
+        setStepIndex(next);
+        saveStoredStepProgress(topic.slug, next);
+        updateStepProgress(topic.slug, next);
       } else if (e.key === 'ArrowLeft') {
-        setStepIndex((prev) => clampStepIndex(prev - 1, topic.steps.length));
+        const prev = clampStepIndex(stepIndex - 1, topic.steps.length);
+        setStepIndex(prev);
+        saveStoredStepProgress(topic.slug, prev);
+        updateStepProgress(topic.slug, prev);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [topic]);
+  }, [topic, stepIndex, updateStepProgress]);
 
   const handleStepChange = useCallback(
     (nextIdx: number) => {
       if (!topic) return;
       const clamped = clampStepIndex(nextIdx, topic.steps.length);
       setStepIndex(clamped);
+      saveStoredStepProgress(topic.slug, clamped);
       updateStepProgress(topic.slug, clamped);
     },
     [topic, updateStepProgress],
   );
+
+  const handleSaveNote = async () => {
+    if (!topic) return;
+    await saveStudyNote(topic.slug, personalNote);
+    setNoteSavedFeedback(true);
+    setTimeout(() => setNoteSavedFeedback(false), 2500);
+  };
 
   const runSimulation = useCallback(
     async (nextParams: Record<string, string | number>) => {
@@ -415,6 +446,43 @@ export function TopicStudioPage() {
               lines={topic.code_lines}
               activeLine={currentStep ? currentStep.code_line : 1}
             />
+
+            {/* Personal Study Notes (Saved in localStorage) */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+                  <BookmarkCheck className="w-4 h-4 text-sky-600" />
+                  <span>Minhas Anotações de Estudo</span>
+                </h3>
+                <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                  Salvo no navegador
+                </span>
+              </div>
+              <textarea
+                value={personalNote}
+                onChange={(e) => setPersonalNote(e.target.value)}
+                placeholder="Anote suas conclusões sobre esta estrutura (salvo automaticamente no LocalStorage)..."
+                rows={3}
+                className="w-full rounded-lg border border-slate-300 p-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-600 resize-none"
+              />
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-[11px] text-slate-500">
+                  {noteSavedFeedback ? (
+                    <span className="text-emerald-700 font-medium">✓ Anotação salva no LocalStorage!</span>
+                  ) : (
+                    'Persistido mesmo ao fechar ou recarregar a página.'
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSaveNote}
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors shrink-0"
+                >
+                  Salvar Nota
+                </button>
+              </div>
+            </div>
 
             {/* Next in Study Queue */}
             {nextQueueEntry && (
