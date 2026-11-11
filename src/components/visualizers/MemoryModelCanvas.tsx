@@ -30,13 +30,19 @@ function getSlotClasses(state: string): { card: string; indicator: string } {
 }
 
 export function MemoryModelCanvas({ payload }: MemoryModelCanvasProps) {
+  const leftSlots = payload?.left_slots || [];
+  const rightSlots = payload?.right_slots || [];
+  const banner = payload?.banner || '';
+  const leftTitle = payload?.left_title || 'Pilha (Stack)';
+  const rightTitle = payload?.right_title || 'Memória Dinâmica (Heap)';
+
   // Compute SVG arrow links between left_slots (with ref_target) and right_slots
   const rightIndexMap = new Map<string, number>();
-  payload.right_slots.forEach((slot, idx) => {
+  rightSlots.forEach((slot, idx) => {
     rightIndexMap.set(slot.id, idx);
   });
 
-  const connections = payload.left_slots
+  const connections = leftSlots
     .map((slot, leftIdx) => {
       if (!slot.ref_target || !rightIndexMap.has(slot.ref_target)) return null;
       return {
@@ -49,14 +55,14 @@ export function MemoryModelCanvas({ payload }: MemoryModelCanvasProps) {
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
   const rowHeight = 76;
-  const maxRows = Math.max(payload.left_slots.length, payload.right_slots.length, 1);
+  const maxRows = Math.max(leftSlots.length, rightSlots.length, 1);
   const svgHeight = maxRows * rowHeight + 16;
 
   return (
-    <div className="flex flex-col justify-between h-full min-h-[300px] gap-5">
+    <div className="flex flex-col justify-between h-full min-h-[300px] gap-6">
       <div className="pb-3 border-b border-slate-200/80">
         <p className="font-mono text-xs sm:text-sm font-medium text-slate-800">
-          {payload.banner}
+          {banner}
         </p>
       </div>
 
@@ -64,9 +70,9 @@ export function MemoryModelCanvas({ payload }: MemoryModelCanvasProps) {
         {/* Left Memory Column */}
         <div className="space-y-3">
           <h4 className="text-xs font-semibold text-slate-600 pb-1 border-b border-slate-200">
-            {payload.left_title}
+            {leftTitle}
           </h4>
-          {payload.left_slots.map((slot) => {
+          {leftSlots.map((slot) => {
             const st = getSlotClasses(slot.state);
             return (
               <div
@@ -128,9 +134,9 @@ export function MemoryModelCanvas({ payload }: MemoryModelCanvasProps) {
         {/* Right Memory Column */}
         <div className="space-y-3">
           <h4 className="text-xs font-semibold text-slate-600 pb-1 border-b border-slate-200">
-            {payload.right_title}
+            {rightTitle}
           </h4>
-          {payload.right_slots.map((slot) => {
+          {rightSlots.map((slot) => {
             const st = getSlotClasses(slot.state);
             return (
               <div

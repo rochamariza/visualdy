@@ -41,23 +41,28 @@ const STATE_STYLES: Record<
 };
 
 export function ArrayPointersCanvas({ payload }: ArrayPointersCanvasProps) {
-  const numericValues = payload.cells.map((c) => {
+  const cells = payload?.cells || [];
+  const pointers = payload?.pointers || [];
+  const metrics = payload?.metrics || [];
+  const banner = payload?.banner || '';
+
+  const numericValues = cells.map((c) => {
     const n = Number(c.value);
     return Number.isFinite(n) ? Math.abs(n) : 10;
   });
-  const maxVal = Math.max(1, ...numericValues);
+  const maxVal = Math.max(1, ...(numericValues.length > 0 ? numericValues : [10]));
 
   return (
     <div className="flex flex-col justify-between h-full min-h-[300px] gap-6">
       {/* Top operation readout + live metrics */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-slate-200/80">
         <p className="font-mono text-xs sm:text-sm font-medium text-slate-800">
-          {payload.banner}
+          {banner}
         </p>
-        {payload.metrics && payload.metrics.length > 0 && (
+        {metrics.length > 0 && (
           <div className="flex items-center gap-4 text-xs text-slate-600 tabular-nums">
-            {payload.metrics.map((m, idx) => (
-              <span key={m.label} className="flex items-center gap-1.5">
+            {metrics.map((m, idx) => (
+              <span key={m.label || idx} className="flex items-center gap-1.5">
                 {idx > 0 && <span aria-hidden="true" className="text-slate-300">·</span>}
                 <span>{m.label}:</span>
                 <strong className="font-mono text-slate-900">{m.value}</strong>
@@ -69,13 +74,13 @@ export function ArrayPointersCanvas({ payload }: ArrayPointersCanvasProps) {
 
       {/* Central proportional bars + indexed cells */}
       <div className="flex items-end justify-center gap-2 sm:gap-3.5 py-4 px-2 overflow-x-auto">
-        {payload.cells.map((cell) => {
+        {cells.map((cell) => {
           const style = STATE_STYLES[cell.state] || STATE_STYLES.default;
           const numVal = Number(cell.value);
           const heightPx = Number.isFinite(numVal)
             ? Math.max(18, Math.round((Math.abs(numVal) / maxVal) * 96))
             : 40;
-          const cellPointers = payload.pointers.filter((p) => p.index === cell.index);
+          const cellPointers = pointers.filter((p) => p.index === cell.index);
 
           return (
             <div

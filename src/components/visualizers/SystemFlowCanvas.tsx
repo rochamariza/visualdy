@@ -5,13 +5,19 @@ interface SystemFlowCanvasProps {
 }
 
 export function SystemFlowCanvas({ payload }: SystemFlowCanvasProps) {
-  const nodeMap = new Map(payload.nodes.map((n) => [n.id, n]));
+  const nodes = payload?.nodes || [];
+  const edges = payload?.edges || [];
+  const banner = payload?.banner || '';
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+
+  const getNormX = (val: number) => ((val > 100 ? val / 6.4 : val) / 100) * 640;
+  const getNormY = (val: number) => ((val > 100 ? val / 3.1 : val) / 100) * 310;
 
   return (
     <div className="flex flex-col justify-between h-full min-h-[300px] gap-4">
       <div className="pb-3 border-b border-slate-200/80">
         <p className="font-mono text-xs sm:text-sm font-medium text-slate-800">
-          {payload.banner}
+          {banner}
         </p>
       </div>
 
@@ -48,15 +54,15 @@ export function SystemFlowCanvas({ payload }: SystemFlowCanvasProps) {
           </defs>
 
           {/* Directed Edges + Packet Callouts */}
-          {payload.edges.map((edge, idx) => {
+          {edges.map((edge, idx) => {
             const s = nodeMap.get(edge.source);
             const t = nodeMap.get(edge.target);
             if (!s || !t) return null;
 
-            const x1 = (s.x / 100) * 640;
-            const y1 = (s.y / 100) * 310;
-            const x2 = (t.x / 100) * 640;
-            const y2 = (t.y / 100) * 310;
+            const x1 = getNormX(s.x);
+            const y1 = getNormY(s.y);
+            const x2 = getNormX(t.x);
+            const y2 = getNormY(t.y);
 
             const dx = x2 - x1;
             const dy = y2 - y1;
@@ -69,7 +75,7 @@ export function SystemFlowCanvas({ payload }: SystemFlowCanvasProps) {
             const ey = dist > padStart + padEnd ? y2 - (dy / dist) * padEnd : y2;
 
             // Slight curve offset when bidirectional edges exist
-            const hasReverse = payload.edges.some(
+            const hasReverse = edges.some(
               (other) => other.source === edge.target && other.target === edge.source,
             );
             const curveOffset = hasReverse ? 18 : 0;
@@ -103,9 +109,9 @@ export function SystemFlowCanvas({ payload }: SystemFlowCanvasProps) {
           })}
 
           {/* Component Nodes */}
-          {payload.nodes.map((node) => {
-            const x = (node.x / 100) * 640;
-            const y = (node.y / 100) * 310;
+          {nodes.map((node) => {
+            const x = getNormX(node.x);
+            const y = getNormY(node.y);
 
             let bg = '#ffffff';
             let border = '#cbd5e1';

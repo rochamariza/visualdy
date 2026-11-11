@@ -5,13 +5,20 @@ interface CallStackTreeCanvasProps {
 }
 
 export function CallStackTreeCanvas({ payload }: CallStackTreeCanvasProps) {
-  const nodeMap = new Map(payload.nodes.map((n) => [n.id, n]));
+  const nodes = payload?.nodes || [];
+  const edges = payload?.edges || [];
+  const stackFrames = payload?.stack_frames || [];
+  const banner = payload?.banner || '';
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+
+  const getNormX = (val: number) => ((val > 100 ? val / 5 : val) / 100) * 500;
+  const getNormY = (val: number) => ((val > 100 ? val / 2.8 : val) / 100) * 280;
 
   return (
     <div className="flex flex-col justify-between h-full min-h-[300px] gap-4">
       <div className="pb-3 border-b border-slate-200/80">
         <p className="font-mono text-xs sm:text-sm font-medium text-slate-800">
-          {payload.banner}
+          {banner}
         </p>
       </div>
 
@@ -50,14 +57,14 @@ export function CallStackTreeCanvas({ payload }: CallStackTreeCanvasProps) {
             </defs>
 
             {/* Edges */}
-            {payload.edges.map((edge) => {
+            {edges.map((edge) => {
               const s = nodeMap.get(edge.source);
               const t = nodeMap.get(edge.target);
               if (!s || !t) return null;
-              const x1 = (s.x / 100) * 500;
-              const y1 = (s.y / 100) * 280 + 18;
-              const x2 = (t.x / 100) * 500;
-              const y2 = (t.y / 100) * 280 - 20;
+              const x1 = getNormX(s.x);
+              const y1 = getNormY(s.y) + 18;
+              const x2 = getNormX(t.x);
+              const y2 = getNormY(t.y) - 20;
               const midX = (x1 + x2) / 2;
               const midY = (y1 + y2) / 2;
 
@@ -86,9 +93,9 @@ export function CallStackTreeCanvas({ payload }: CallStackTreeCanvasProps) {
             })}
 
             {/* Nodes */}
-            {payload.nodes.map((node) => {
-              const cx = (node.x / 100) * 500;
-              const cy = (node.y / 100) * 280;
+            {nodes.map((node) => {
+              const cx = getNormX(node.x);
+              const cy = getNormY(node.y);
 
               let fill = '#ffffff';
               let stroke = '#cbd5e1';
@@ -132,7 +139,7 @@ export function CallStackTreeCanvas({ payload }: CallStackTreeCanvasProps) {
                     textAnchor="middle"
                     className="text-[9.5px] fill-slate-500"
                   >
-                    {node.sublabel}
+                    {node.sublabel || ''}
                   </text>
                 </g>
               );
@@ -148,11 +155,11 @@ export function CallStackTreeCanvas({ payload }: CallStackTreeCanvasProps) {
                 Pilha de Execução / Rastro
               </span>
               <span className="text-[11px] font-mono text-slate-500 tabular-nums">
-                {payload.stack_frames.length} {payload.stack_frames.length === 1 ? 'quadro' : 'quadros'}
+                {stackFrames.length} {stackFrames.length === 1 ? 'quadro' : 'quadros'}
               </span>
             </div>
             <div className="flex flex-col-reverse gap-2">
-              {payload.stack_frames.map((frame, i) => (
+              {stackFrames.map((frame, i) => (
                 <div
                   key={`${frame.label}-${i}`}
                   className={`rounded-lg border px-3 py-2 text-xs flex items-center justify-between gap-2 ${
