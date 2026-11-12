@@ -2,7 +2,7 @@ import { Link, NavLink } from 'react-router-dom';
 import { useStudy } from '../../context/StudyContext';
 
 export function TopBar() {
-  const { nextStudySlug, studyStats } = useStudy();
+  const { nextStudySlug, savedStudies } = useStudy();
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `transition-colors whitespace-nowrap shrink-0 pb-0.5 border-b-2 ${
@@ -39,7 +39,7 @@ export function TopBar() {
             Categorias
           </NavLink>
           <NavLink to="/estudos" className={navLinkClass}>
-            Meus Estudos ({studyStats.total})
+            Meus Estudos ({savedStudies.length})
           </NavLink>
           <NavLink to="/gerador" className={navLinkClass}>
             Criar Visual
@@ -69,7 +69,7 @@ export function TopBar() {
           Categorias
         </NavLink>
         <NavLink to="/estudos" className={({ isActive }) => `min-h-[40px] px-2.5 py-2 flex items-center justify-center ${navLinkClass({ isActive })}`}>
-          Meus Estudos ({studyStats.total})
+          Meus Estudos ({savedStudies.length})
         </NavLink>
         <NavLink to="/gerador" className={({ isActive }) => `min-h-[40px] px-2.5 py-2 flex items-center justify-center ${navLinkClass({ isActive })}`}>
           Criar Visual

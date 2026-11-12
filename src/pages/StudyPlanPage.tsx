@@ -10,14 +10,18 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useStudy } from '../context/StudyContext';
+import { getVisualizationTypeLabel } from '../schemas/tutorSchema';
 import { reorderSlugs } from '../utils/studyLogic';
 
 export function StudyPlanPage() {
   const {
     topics,
     studyEntries,
+    savedStudies,
     studyStats,
     nextStudySlug,
+    getSavedStudy,
+    removeStudy,
     toggleTopicInStudy,
     markTopicCompleted,
     saveStudyNote,
@@ -51,6 +55,17 @@ export function StudyPlanPage() {
     await reorderStudyItems(nextSlugs);
   };
 
+  const resolveStudyLink = (slug: string, title: string): string => {
+    const saved = getSavedStudy(slug);
+    if (saved?.generatedJson) {
+      return `/gerador?estudo=${encodeURIComponent(saved.id)}`;
+    }
+    if (topics.some((t) => t.slug === slug)) {
+      return `/assunto/${encodeURIComponent(slug)}`;
+    }
+    return `/gerador?assunto=${encodeURIComponent(title)}`;
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 space-y-12">
       {/* Header + Primary Study Action */}
@@ -61,13 +76,17 @@ export function StudyPlanPage() {
             Meus Estudos Escolhidos
           </h1>
           <p className="text-sm sm:text-base text-slate-600 max-w-2xl">
-            Organize a ordem dos assuntos que você escolheu dominar, registre sínteses rápidas e retome de onde parou sem perder o foco.
+            Organize a ordem dos assuntos que você escolheu dominar, registre sínteses rápidas e reabra explicações salvas sem gastar novas chamadas à API.
           </p>
         </div>
 
         {studyEntries.length > 0 && (
           <Link
-            to={`/assunto/${nextStudySlug}`}
+            to={resolveStudyLink(
+              nextStudySlug,
+              orderedEntries.find((e) => e.topic_slug === nextStudySlug)?.topic.title ||
+                nextStudySlug,
+            )}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors whitespace-nowrap shrink-0"
           >
             <span>Iniciar Próximo Assunto</span>
@@ -81,7 +100,7 @@ export function StudyPlanPage() {
         <div className="bg-white border border-slate-200 rounded-xl p-4">
           <div className="text-xs text-slate-500">Assuntos Escolhidos</div>
           <div className="font-display text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-            {studyStats.total}
+            {Math.max(studyStats.total, savedStudies.length)}
           </div>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -97,9 +116,9 @@ export function StudyPlanPage() {
           </div>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-4">
-          <div className="text-xs text-slate-500">Tempo Estimado Restante</div>
-          <div className="font-display text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-            {studyStats.remainingMinutes} min
+          <div className="text-xs text-slate-500">Salvos com JSON Local</div>
+          <div className="font-display text-2xl font-bold text-sky-700 mt-1 tabular-nums">
+            {savedStudies.filter((s) => Boolean(s.generatedJson)).length}
           </div>
         </div>
       </div>
@@ -109,7 +128,7 @@ export function StudyPlanPage() {
         <div className="flex items-center gap-2.5">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 shadow-xs"></span>
           <span>
-            <strong>Armazenamento Local Ativo:</strong> Seus tópicos gerados, anotações e progresso estão salvos localmente no seu navegador. Você pode fechar a janela ou recarregar a página sem perder nada.
+            <strong>Armazenamento Local Ativo:</strong> Seus tópicos salvos, JSON gerado pelo Agente Tutor, anotações e progresso permanecem salvos no seu navegador mesmo ao fechar ou recarregar a página.
           </span>
         </div>
       </div>
@@ -149,10 +168,10 @@ export function StudyPlanPage() {
           <div className="bg-white border border-slate-200 rounded-xl p-8 text-center space-y-3">
             <p className="text-sm text-slate-600">
               {studyEntries.length === 0
-                ? 'Você ainda não selecionou assuntos para estudar. Escolha abaixo ou crie uma explicação visual sob medida.'
+                ? 'Você ainda não selecionou assuntos para estudar. Escolha abaixo ou crie uma explicação visual com o Agente Tutor.'
                 : 'Nenhum assunto corresponde ao filtro selecionado.'}
             </p>
-            <div className="flex justify-center gap-3">
+            <div className="flex flex-wrap justify-center gap-3">
               {studyEntries.length > 0 ? (
                 <button
                   type="button"
@@ -162,12 +181,20 @@ export function StudyPlanPage() {
                   Mostrar Todos
                 </button>
               ) : (
-                <Link
-                  to="/categorias"
-                  className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium"
-                >
-                  Explorar Categorias
-                </Link>
+                <>
+                  <Link
+                    to="/gerador"
+                    className="px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-700"
+                  >
+                    Perguntar ao Agente Tutor
+                  </Link>
+                  <Link
+                    to="/categorias"
+                    className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800"
+                  >
+                    Explorar Categorias
+                  </Link>
+                </>
               )}
             </div>
           </div>
@@ -178,6 +205,8 @@ export function StudyPlanPage() {
                 (x) => x.topic_slug === entry.topic_slug,
               );
               const isEditing = editingNoteSlug === entry.topic_slug;
+              const savedItem = getSavedStudy(entry.topic_slug);
+              const targetUrl = resolveStudyLink(entry.topic_slug, entry.topic.title);
 
               return (
                 <div
@@ -207,23 +236,25 @@ export function StudyPlanPage() {
                         <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 tabular-nums">
                           <span>#{globalIndex + 1}</span>
                           <span aria-hidden="true">·</span>
-                          <span>{entry.topic.category_name}</span>
+                          <span>
+                            {savedItem
+                              ? getVisualizationTypeLabel(savedItem.visualizationType)
+                              : entry.topic.category_name}
+                          </span>
                           <span aria-hidden="true">·</span>
                           <span>{entry.topic.difficulty}</span>
-                          <span aria-hidden="true">·</span>
-                          <span>{entry.topic.read_minutes} min</span>
-                          {typeof entry.last_step_viewed === 'number' && entry.last_step_viewed > 0 && (
+                          {savedItem?.generatedJson && (
                             <>
                               <span aria-hidden="true">·</span>
-                              <span className="text-sky-700 font-medium">
-                                Passo {entry.last_step_viewed + 1} de {entry.topic.step_count}
+                              <span className="text-emerald-700 font-medium">
+                                JSON salvo em cache
                               </span>
                             </>
                           )}
                         </div>
                         <h3 className="font-display text-base font-semibold text-slate-900 mt-0.5">
                           <Link
-                            to={`/assunto/${entry.topic_slug}`}
+                            to={targetUrl}
                             className="hover:text-sky-700 transition-colors"
                           >
                             {entry.topic.title}
@@ -277,7 +308,7 @@ export function StudyPlanPage() {
 
                         <button
                           type="button"
-                          onClick={() => toggleTopicInStudy(entry.topic_slug)}
+                          onClick={() => removeStudy(entry.topic_slug)}
                           aria-label={`Remover ${entry.topic.title} dos estudos`}
                           className="min-h-[40px] min-w-[40px] flex items-center justify-center p-2 rounded-lg border border-slate-200 text-slate-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                         >
@@ -286,15 +317,18 @@ export function StudyPlanPage() {
                       </div>
 
                       <Link
-                        to={`/assunto/${entry.topic_slug}`}
+                        to={targetUrl}
                         className="min-h-[40px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 whitespace-nowrap transition-colors"
                       >
                         <span>
-                          {entry.completed
-                            ? 'Revisar'
-                            : typeof entry.last_step_viewed === 'number' && entry.last_step_viewed > 0
-                            ? 'Continuar'
-                            : 'Estudar'}
+                          {savedItem?.generatedJson
+                            ? 'Reabrir'
+                            : entry.completed
+                              ? 'Revisar'
+                              : typeof entry.last_step_viewed === 'number' &&
+                                  entry.last_step_viewed > 0
+                                ? 'Continuar'
+                                : 'Estudar'}
                         </span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>

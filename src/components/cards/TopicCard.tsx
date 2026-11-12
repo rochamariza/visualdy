@@ -117,6 +117,7 @@ export function TopicCard({
           <button
             type="button"
             onClick={() => onToggleStudy(topic.slug)}
+            data-studied={isSelected ? 'true' : 'false'}
             aria-label={
               isSelected
                 ? `Remover ${topic.title} dos Meus Estudos`
@@ -124,19 +125,19 @@ export function TopicCard({
             }
             className={`min-h-[40px] inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap ${
               isSelected
-                ? 'bg-sky-50 border-sky-300 text-sky-900 hover:bg-sky-100'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100'
                 : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
             }`}
           >
             {isSelected ? (
               <>
-                <BookmarkCheck className="w-3.5 h-3.5 text-sky-700 shrink-0" />
-                <span>Nos Estudos</span>
+                <BookmarkCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span>✓ Adicionado</span>
               </>
             ) : (
               <>
                 <BookmarkPlus className="w-3.5 h-3.5 shrink-0" />
-                <span>Estudar</span>
+                <span>Adicionar</span>
               </>
             )}
           </button>

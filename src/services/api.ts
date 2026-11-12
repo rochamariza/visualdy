@@ -1,3 +1,8 @@
+import {
+  TutorResponseSchema,
+  type TutorResponse,
+} from '../schemas/tutorSchema';
+import { generateDeterministicTutorResponse } from '../server/deterministicTutor';
 import type {
   CategorySummary,
   DifficultyLevel,
@@ -104,18 +109,23 @@ export const visualdyApi = {
   },
 
   async getTopicDetail(slug: string): Promise<TopicDetail> {
+    const resolvedSlug =
+      slug === 'arvores-binarias' || slug === 'arvore-binaria'
+        ? 'arvore-binaria-busca'
+        : slug;
+
     // Check local custom topics first
     const customMap = getStoredCustomTopics();
-    if (customMap[slug]) {
-      return customMap[slug];
+    if (customMap[resolvedSlug]) {
+      return customMap[resolvedSlug];
     }
 
     try {
-      return await requestJson<TopicDetail>(`/api/topics/${encodeURIComponent(slug)}`);
+      return await requestJson<TopicDetail>(`/api/topics/${encodeURIComponent(resolvedSlug)}`);
     } catch (err) {
       // If server failed, check if we can generate on the fly
       console.warn('[Topic Detail Fallback]', err);
-      const generated = generateClientVisualTopic({ concept: slug.replace(/-/g, ' ') });
+      const generated = generateClientVisualTopic({ concept: resolvedSlug.replace(/-/g, ' ') });
       saveStoredCustomTopic(generated);
       return generated;
     }
@@ -158,6 +168,55 @@ export const visualdyApi = {
     }
 
     return topic;
+  },
+
+  async askTutorAgent(topicInput: string): Promise<TutorResponse> {
+    const cleanTopic = topicInput.trim();
+    if (cleanTopic.length < 2) {
+      throw new Error('Informe um tema com pelo menos 2 caracteres.');
+    }
+
+    const targetUrl = `${API_BASE}/api/tutor-agent`;
+    let response: Response;
+    try {
+      response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ topic: cleanTopic }),
+      });
+    } catch (networkErr) {
+      console.warn('[Tutor Agent Offline Fallback]', networkErr);
+      return generateDeterministicTutorResponse(cleanTopic);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      // Static hosting without serverless functions returned HTML
+      console.warn('[Tutor Agent Static Fallback] Resposta não-JSON do servidor.');
+      return generateDeterministicTutorResponse(cleanTopic);
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+      const msg =
+        typeof data?.detail === 'string'
+          ? data.detail
+          : typeof data?.error === 'string'
+            ? data.error
+            : `Erro ao consultar o Agente Tutor Visual (${response.status})`;
+      throw new Error(msg);
+    }
+
+    const parsed = TutorResponseSchema.safeParse(data);
+    if (!parsed.success) {
+      throw new Error(
+        'A resposta recebida do Agente Tutor veio em formato incompleto. Tente novamente.',
+      );
+    }
+    return parsed.data;
   },
 
   async getStudyPlan(): Promise<StudyPlanResponse> {

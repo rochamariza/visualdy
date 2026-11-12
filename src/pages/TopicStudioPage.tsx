@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ArrowRight,
   BookmarkCheck,
-  BookmarkPlus,
   CheckCircle2,
+  Search,
   SlidersHorizontal,
+  Sparkles,
 } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { StudyToggleButton } from '../components/common/StudyToggleButton';
 import { CodeSyncPanel } from '../components/study/CodeSyncPanel';
 import { VisualStage } from '../components/visualizers/VisualStage';
 import { useStudy } from '../context/StudyContext';
@@ -15,13 +17,27 @@ import type { TopicDetail } from '../types/visual';
 import { getStoredStepProgress, saveStoredStepProgress } from '../utils/localStudyStore';
 import { clampStepIndex } from '../utils/studyLogic';
 
+function mapArchetypeToVisType(archetype: TopicDetail['archetype']): string {
+  switch (archetype) {
+    case 'call_stack_tree':
+      return 'arvore';
+    case 'array_pointers':
+      return 'array';
+    case 'memory_model':
+      return 'lista_ligada';
+    case 'relational_join':
+      return 'tabela_hash';
+    default:
+      return 'fluxo';
+  }
+}
+
 export function TopicStudioPage() {
   const { topicSlug } = useParams<{ topicSlug: string }>();
+  const navigate = useNavigate();
   const {
     studyEntries,
-    isTopicSelected,
     isTopicCompleted,
-    toggleTopicInStudy,
     markTopicCompleted,
     updateStepProgress,
     saveStudyNote,
@@ -36,6 +52,7 @@ export function TopicStudioPage() {
   const [simulating, setSimulating] = useState<boolean>(false);
   const [personalNote, setPersonalNote] = useState<string>('');
   const [noteSavedFeedback, setNoteSavedFeedback] = useState<boolean>(false);
+  const [studioQuery, setStudioQuery] = useState<string>('');
 
   useEffect(() => {
     if (!topicSlug) return;
@@ -150,6 +167,13 @@ export function TopicStudioPage() {
     runSimulation(paramDraft);
   };
 
+  const handleStudioSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = studioQuery.trim();
+    if (trimmed.length < 2) return;
+    navigate(`/gerador?assunto=${encodeURIComponent(trimmed)}`);
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-5 sm:px-8 py-14">
@@ -181,7 +205,7 @@ export function TopicStudioPage() {
               to="/gerador"
               className="min-h-[44px] inline-flex items-center justify-center px-4 py-2.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50"
             >
-              Criar Explicação Visual
+              Perguntar ao Agente Tutor
             </Link>
           </div>
         </div>
@@ -191,7 +215,6 @@ export function TopicStudioPage() {
 
   const safeStep = clampStepIndex(stepIndex, topic.steps.length);
   const currentStep = topic.steps[safeStep];
-  const selectedInStudy = isTopicSelected(topic.slug);
   const completedInStudy = isTopicCompleted(topic.slug);
 
   // Next study item suggestion
@@ -201,6 +224,35 @@ export function TopicStudioPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-5 sm:px-8 py-8 sm:py-10 space-y-6">
+      {/* Quick Search / Ask Agent Bar in Studio */}
+      {!focusMode && (
+        <form
+          onSubmit={handleStudioSearchSubmit}
+          className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
+        >
+          <div className="flex items-center gap-2 text-xs font-medium text-slate-700 px-1 shrink-0">
+            <Search className="w-3.5 h-3.5 text-sky-600" />
+            <span>Estúdio Completo · Novo tema:</span>
+          </div>
+          <input
+            type="text"
+            value={studioQuery}
+            onChange={(e) => setStudioQuery(e.target.value)}
+            placeholder="Digite outro assunto para o Agente Tutor Visual (ex.: Grafos, Pilhas, DNS)..."
+            aria-label="Perguntar novo tema ao Agente Tutor Visual"
+            className="flex-1 min-h-[40px] rounded-lg border border-slate-300 px-3 py-1.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-600"
+          />
+          <button
+            type="submit"
+            disabled={studioQuery.trim().length < 2}
+            className="min-h-[40px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-medium hover:bg-sky-700 disabled:opacity-50 transition-colors whitespace-nowrap shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Gerar com IA</span>
+          </button>
+        </form>
+      )}
+
       {/* Top Breadcrumb + Study Actions */}
       {!focusMode && (
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 border-b border-slate-200">
@@ -231,32 +283,21 @@ export function TopicStudioPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-2.5 w-full lg:w-auto shrink-0">
-            <button
-              type="button"
-              onClick={() => toggleTopicInStudy(topic.slug)}
-              className={`min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap ${
-                selectedInStudy
-                  ? 'bg-sky-50 border-sky-300 text-sky-900 hover:bg-sky-100'
-                  : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              {selectedInStudy ? (
-                <>
-                  <BookmarkCheck className="w-4 h-4 text-sky-700 shrink-0" />
-                  <span>Nos Meus Estudos</span>
-                </>
-              ) : (
-                <>
-                  <BookmarkPlus className="w-4 h-4 shrink-0" />
-                  <span>Adicionar aos Estudos</span>
-                </>
-              )}
-            </button>
+            <StudyToggleButton
+              studyInput={{
+                id: topic.slug,
+                title: topic.title,
+                visualizationType: mapArchetypeToVisType(topic.archetype),
+                difficulty: topic.difficulty,
+                description: topic.one_liner,
+                generatedJson: null,
+              }}
+            />
 
             <button
               type="button"
               onClick={() => markTopicCompleted(topic.slug, !completedInStudy)}
-              className={`min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+              className={`min-h-[42px] inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
                 completedInStudy
                   ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                   : 'bg-slate-900 text-white hover:bg-slate-800'
@@ -328,10 +369,9 @@ export function TopicStudioPage() {
           )}
         </div>
 
-        {/* Right Zone: Step Explanation, Live FastAPI Parameter Controls & Synced Code */}
+        {/* Right Zone: Step Explanation, Live Parameter Controls & Synced Code */}
         {!focusMode && (
           <div className="lg:col-span-5 xl:col-span-4 space-y-5">
-            {/* Direct Step Explanation Card */}
             {currentStep && (
               <section
                 aria-live="polite"
@@ -353,7 +393,6 @@ export function TopicStudioPage() {
               </section>
             )}
 
-            {/* Interactive FastAPI Parameter Controls */}
             {topic.parameters.length > 0 && (
               <form
                 onSubmit={handleParamSubmit}

@@ -1,9 +1,11 @@
+import 'dotenv/config';
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type Request, type Response } from 'express';
+import { runTutorAgent } from './src/server/tutorAgent';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -143,6 +145,28 @@ async function startServer(): Promise<void> {
     });
   });
 
+  // Agente Tutor Visual (Etapa A Planejamento + Etapa B Geração Estruturada)
+  app.post('/api/tutor-agent', async (req: Request, res: Response) => {
+    try {
+      const topic = String(req.body?.topic || req.body?.concept || req.body?.tema || '').trim();
+      if (topic.length < 2) {
+        res.status(422).json({
+          detail: 'Informe um tema válido com pelo menos 2 caracteres.',
+        });
+        return;
+      }
+
+      const result = await runTutorAgent(topic);
+      res.status(200).json(result);
+    } catch (err: any) {
+      console.error('[Tutor Agent Error]', err);
+      const status = Number(err?.status) || 500;
+      res.status(status >= 400 && status < 600 ? status : 500).json({
+        detail: err?.message || 'Não foi possível gerar a explicação visual no momento.',
+      });
+    }
+  });
+
   // Endpoint local para Gemini AI (espelho da Netlify Function)
   app.post('/api/gemini', async (req: Request, res: Response) => {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -171,7 +195,7 @@ async function startServer(): Promise<void> {
       });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-4-hydrogen',
         contents: prompt,
         config: {
           systemInstruction:

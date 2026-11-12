@@ -1,127 +1,176 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { CodeSyncPanel } from '../components/study/CodeSyncPanel';
-import { VisualStage } from '../components/visualizers/VisualStage';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  ArrowRight,
+  BookmarkCheck,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+} from 'lucide-react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { TutorExplanationView } from '../components/tutor/TutorExplanationView';
 import { useStudy } from '../context/StudyContext';
+import { slugifyTopic, type TutorResponse } from '../schemas/tutorSchema';
 import { visualdyApi } from '../services/api';
-import type { DifficultyLevel, TopicDetail, VisualArchetype } from '../types/visual';
-import { clampStepIndex, validateConceptInput } from '../utils/studyLogic';
+import { validateConceptInput } from '../utils/studyLogic';
 
 const PRESET_CONCEPTS = [
-  'Deadlock entre Processos',
-  'Garbage Collector (Mark & Sweep)',
-  'Containers Docker',
-  'Git Branch e Merge',
-  'Arquitetura API REST',
-];
-
-const ARCHETYPE_OPTIONS: Array<{ label: string; value: VisualArchetype | 'auto' }> = [
-  { label: 'Automático (Detectar melhor diagrama)', value: 'auto' },
-  { label: 'Fluxo de Sistema e Estados', value: 'system_flow' },
-  { label: 'Mapa de Memória (Stack / Heap)', value: 'memory_model' },
-  { label: 'Vetor Indexado e Ponteiros', value: 'array_pointers' },
-  { label: 'Árvore e Pilha de Chamadas', value: 'call_stack_tree' },
-  { label: 'Portas Lógicas e 8 Bits', value: 'logic_gates' },
-  { label: 'Conjuntos e Tabelas SQL', value: 'relational_join' },
+  'Grafos',
+  'Pilhas',
+  'Quicksort',
+  'Como funciona o DNS',
+  'Árvores Binárias',
+  'Tabelas Hash',
 ];
 
 export function GeneratorPage() {
-  const [searchParams] = useSearchParams();
-  const { refreshCatalogAndStudy } = useStudy();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const { getSavedStudy } = useStudy();
 
-  const [concept, setConcept] = useState<string>(searchParams.get('assunto') || '');
-  const [archetypeChoice, setArchetypeChoice] = useState<VisualArchetype | 'auto'>('auto');
-  const [difficulty, setDifficulty] = useState<DifficultyLevel>('Iniciante');
-  const [addToStudy, setAddToStudy] = useState<boolean>(true);
+  const assuntoParam = searchParams.get('assunto') || '';
+  const estudoParam = searchParams.get('estudo') || '';
+  const preloadedState = (location.state as { preloadedResult?: TutorResponse } | null)
+    ?.preloadedResult;
 
+  const [concept, setConcept] = useState<string>(assuntoParam || '');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<boolean>(false);
-  const [generatedTopic, setGeneratedTopic] = useState<TopicDetail | null>(null);
-  const [stepIndex, setStepIndex] = useState<number>(0);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [result, setResult] = useState<TutorResponse | null>(preloadedState || null);
+  const [loadedFromCache, setLoadedFromCache] = useState<boolean>(false);
+  const [lastRequestedTopic, setLastRequestedTopic] = useState<string>(assuntoParam || '');
 
-  const executeGeneration = useCallback(
-    async (
-      targetConcept: string,
-      chosenArchetype: VisualArchetype | 'auto',
-      chosenDifficulty: DifficultyLevel,
-      autoStudy: boolean,
-    ) => {
-      const check = validateConceptInput(targetConcept);
-      if (!check.valid) {
-        setValidationError(check.error);
+  const lastHandledKeyRef = useRef<string>('');
+
+  const executeAgent = useCallback(async (targetConcept: string) => {
+    const check = validateConceptInput(targetConcept);
+    if (!check.valid) {
+      setValidationError(check.error);
+      return;
+    }
+
+    const clean = targetConcept.trim();
+    setValidationError(null);
+    setApiError(null);
+    setLoadedFromCache(false);
+    setGenerating(true);
+    setLastRequestedTopic(clean);
+
+    try {
+      const response = await visualdyApi.askTutorAgent(clean);
+      setResult(response);
+    } catch (err) {
+      setApiError(
+        err instanceof Error
+          ? err.message
+          : 'Falha ao consultar o Agente Tutor Visual. Tente novamente.',
+      );
+    } finally {
+      setGenerating(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const routeKey = `${estudoParam}::${assuntoParam}`;
+    if (lastHandledKeyRef.current === routeKey) return;
+
+    if (preloadedState && assuntoParam) {
+      lastHandledKeyRef.current = routeKey;
+      setConcept(preloadedState.titulo);
+      setResult(preloadedState);
+      setLoadedFromCache(false);
+      return;
+    }
+
+    if (estudoParam) {
+      lastHandledKeyRef.current = routeKey;
+      const saved = getSavedStudy(estudoParam);
+      if (saved?.generatedJson) {
+        setConcept(saved.title);
+        setResult(saved.generatedJson);
+        setLoadedFromCache(true);
+        setApiError(null);
         return;
       }
-
-      try {
-        setValidationError(null);
-        setGenerating(true);
-        const created = await visualdyApi.generateVisualExplanation({
-          concept: targetConcept.trim(),
-          preferred_archetype: chosenArchetype === 'auto' ? null : chosenArchetype,
-          difficulty: chosenDifficulty,
-          save_to_catalog: true,
-          add_to_study_plan: autoStudy,
-        });
-        setGeneratedTopic(created);
-        setStepIndex(0);
-        await refreshCatalogAndStudy();
-      } catch (err) {
-        setValidationError(
-          err instanceof Error ? err.message : 'Falha ao gerar explicação visual.',
-        );
-      } finally {
-        setGenerating(false);
+      if (saved) {
+        setConcept(saved.title);
+        executeAgent(saved.title);
+        return;
       }
-    },
-    [refreshCatalogAndStudy],
-  );
-
-  // Auto-run if navigated from Home with ?assunto=...
-  useEffect(() => {
-    const prefilled = searchParams.get('assunto');
-    if (prefilled && prefilled.trim().length >= 2) {
-      setConcept(prefilled);
-      executeGeneration(prefilled, 'auto', 'Iniciante', true);
+      const fallbackTopic = estudoParam.replace(/-/g, ' ');
+      setConcept(fallbackTopic);
+      executeAgent(fallbackTopic);
+      return;
     }
-  }, [searchParams, executeGeneration]);
+
+    if (assuntoParam && assuntoParam.trim().length >= 2) {
+      lastHandledKeyRef.current = routeKey;
+      setConcept(assuntoParam);
+      executeAgent(assuntoParam);
+    }
+  }, [assuntoParam, estudoParam, preloadedState, getSavedStudy, executeAgent]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    executeGeneration(concept, archetypeChoice, difficulty, addToStudy);
+    const check = validateConceptInput(concept);
+    if (!check.valid) {
+      setValidationError(check.error);
+      return;
+    }
+    const clean = concept.trim();
+    lastHandledKeyRef.current = `::${clean}`;
+    setSearchParams({ assunto: clean });
+    executeAgent(clean);
   };
 
-  const currentStep = generatedTopic
-    ? generatedTopic.steps[clampStepIndex(stepIndex, generatedTopic.steps.length)]
+  const handlePresetClick = (preset: string) => {
+    setConcept(preset);
+    setValidationError(null);
+    lastHandledKeyRef.current = `::${preset}`;
+    setSearchParams({ assunto: preset });
+    executeAgent(preset);
+  };
+
+  const classicStudioSlug = result
+    ? slugifyTopic(result.titulo) === 'arvores-binarias' ||
+      slugifyTopic(result.titulo).includes('arvore-binaria')
+      ? 'arvore-binaria-busca'
+      : slugifyTopic(result.titulo) === 'busca-binaria'
+        ? 'busca-binaria'
+        : null
     : null;
 
   return (
-    <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 space-y-10">
+    <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 space-y-8">
       {/* Header */}
       <div className="max-w-3xl space-y-2">
-        <div className="text-xs text-slate-500">Motor de Explicação Visual</div>
+        <div className="inline-flex items-center gap-2 text-xs font-medium text-sky-700">
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Agente Tutor Visual · Arquitetura em 2 Etapas</span>
+        </div>
         <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
-          Criar Explicação Visual para Qualquer Assunto
+          Estúdio do Agente Tutor Visual
         </h1>
         <p className="text-sm sm:text-base text-slate-600">
-          Digite qualquer conceito de computação ou programação. O back-end Python sintetiza um diagrama interativo passo a passo e já o disponibiliza nos seus estudos.
+          Pergunte sobre qualquer tema de computação ou conhecimento geral. O agente primeiro planeja o roteiro e escolhe o melhor tipo de diagrama (Etapa A), depois gera explicação estruturada e animação passo a passo (Etapa B).
         </p>
       </div>
 
-      {/* Generator Form Card */}
+      {/* Ask Form Card */}
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5"
+        className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-4"
       >
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-6 space-y-1.5">
-            <label
-              htmlFor="concept-input"
-              className="block text-xs font-semibold text-slate-800"
-            >
-              Assunto ou Conceito de Computação
-            </label>
+        <div className="space-y-1.5">
+          <label
+            htmlFor="concept-input"
+            className="block text-xs font-semibold text-slate-800"
+          >
+            Qual tema você quer entender visualmente hoje?
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2.5">
             <input
               id="concept-input"
               type="text"
@@ -130,51 +179,21 @@ export function GeneratorPage() {
                 setConcept(e.target.value);
                 if (validationError) setValidationError(null);
               }}
-              placeholder="Ex.: Deadlock entre Processos, Garbage Collector, Docker..."
-              className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-600"
+              placeholder="Ex.: Grafos, Pilhas, Quicksort, Como funciona o DNS, Recursão..."
+              className="flex-1 min-h-[46px] rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-600"
             />
-          </div>
-
-          <div className="lg:col-span-4 space-y-1.5">
-            <label
-              htmlFor="archetype-select"
-              className="block text-xs font-semibold text-slate-800"
+            <button
+              type="submit"
+              disabled={generating}
+              className="min-h-[46px] inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-50 transition-colors whitespace-nowrap shrink-0"
             >
-              Estrutura Visual
-            </label>
-            <select
-              id="archetype-select"
-              value={archetypeChoice}
-              onChange={(e) =>
-                setArchetypeChoice(e.target.value as VisualArchetype | 'auto')
-              }
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-600"
-            >
-              {ARCHETYPE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="lg:col-span-2 space-y-1.5">
-            <label
-              htmlFor="difficulty-select"
-              className="block text-xs font-semibold text-slate-800"
-            >
-              Profundidade
-            </label>
-            <select
-              id="difficulty-select"
-              value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value as DifficultyLevel)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-600"
-            >
-              <option value="Iniciante">Iniciante</option>
-              <option value="Intermediário">Intermediário</option>
-              <option value="Avançado">Avançado</option>
-            </select>
+              {generating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              <span>{generating ? 'Gerando...' : 'Gerar Explicação Visual'}</span>
+            </button>
           </div>
         </div>
 
@@ -184,105 +203,113 @@ export function GeneratorPage() {
           </p>
         )}
 
-        {/* Preset Quick Triggers + Submit Row */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-2 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-500 w-full sm:w-auto">Sugestões rápidas:</span>
-            {PRESET_CONCEPTS.map((preset) => (
-              <button
-                key={preset}
-                type="button"
-                onClick={() => {
-                  setConcept(preset);
-                  setValidationError(null);
-                  executeGeneration(preset, archetypeChoice, difficulty, addToStudy);
-                }}
-                className="min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors whitespace-nowrap flex items-center justify-center"
-              >
-                {preset}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3.5 w-full md:w-auto shrink-0">
-            <label className="inline-flex items-center gap-2 text-xs text-slate-700 cursor-pointer min-h-[36px]">
-              <input
-                type="checkbox"
-                checked={addToStudy}
-                onChange={(e) => setAddToStudy(e.target.checked)}
-                className="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
-              />
-              <span>Incluir nos Meus Estudos</span>
-            </label>
-
+        {/* Preset Quick Triggers */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+          <span className="text-xs text-slate-500 mr-1">Sugestões rápidas:</span>
+          {PRESET_CONCEPTS.map((preset) => (
             <button
-              type="submit"
+              key={preset}
+              type="button"
               disabled={generating}
-              className="w-full sm:w-auto min-h-[46px] inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+              onClick={() => handlePresetClick(preset)}
+              className="min-h-[36px] px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 transition-colors whitespace-nowrap"
             >
-              <Sparkles className="w-4 h-4" />
-              <span>{generating ? 'Construindo Visual...' : 'Gerar Explicação Visual'}</span>
+              {preset}
             </button>
-          </div>
+          ))}
         </div>
       </form>
 
-      {/* Live Generated Interactive Result */}
-      {generatedTopic && (
-        <section className="space-y-6 pt-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50/70 border border-emerald-200 rounded-xl px-5 py-3.5">
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-emerald-950">
-              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-              <span>
-                Explicação visual criada para <strong>{generatedTopic.title}</strong> ({generatedTopic.step_count} etapas).
-              </span>
-            </div>
-            <Link
-              to={`/assunto/${generatedTopic.slug}`}
-              className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 whitespace-nowrap w-full sm:w-auto"
-            >
-              <span>Abrir no Estúdio Completo</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+      {/* Loading State */}
+      {generating && (
+        <section
+          aria-live="polite"
+          data-testid="agent-loading-state"
+          className="bg-white border border-slate-200 rounded-2xl p-10 text-center space-y-4"
+        >
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sky-50 text-sky-600">
+            <Loader2 className="w-6 h-6 animate-spin" />
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
-            <div className="lg:col-span-7 xl:col-span-8">
-              <VisualStage
-                archetype={generatedTopic.archetype}
-                steps={generatedTopic.steps}
-                currentStepIndex={stepIndex}
-                onStepChange={setStepIndex}
-              />
-            </div>
-
-            <div className="lg:col-span-5 xl:col-span-4 space-y-5">
-              {currentStep && (
-                <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
-                  <div className="text-xs font-mono text-sky-700">
-                    Passo {stepIndex + 1} de {generatedTopic.steps.length}
-                  </div>
-                  <h2 className="font-display text-lg font-bold text-slate-900">
-                    {currentStep.title}
-                  </h2>
-                  <p className="text-sm text-slate-700 leading-relaxed">
-                    {currentStep.explanation}
-                  </p>
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-700">
-                    <strong className="text-slate-900">Ponto-chave: </strong>
-                    {currentStep.takeaway}
-                  </div>
-                </div>
-              )}
-
-              <CodeSyncPanel
-                language={generatedTopic.code_language}
-                lines={generatedTopic.code_lines}
-                activeLine={currentStep ? currentStep.code_line : 1}
-              />
-            </div>
+          <div className="space-y-1.5 max-w-lg mx-auto">
+            <h2 className="font-display text-lg font-semibold text-slate-900">
+              Agente Tutor Visual trabalhando em &ldquo;{lastRequestedTopic || concept}&rdquo;...
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600">
+              Etapa A: Planejando nível, pré-requisitos e tipo de diagrama · Etapa B: Gerando explicação passo a passo e validando JSON estruturado.
+            </p>
           </div>
         </section>
+      )}
+
+      {/* Error State with Retry */}
+      {apiError && !generating && (
+        <section
+          role="alert"
+          data-testid="agent-error-state"
+          className="bg-red-50 border border-red-200 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-700 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h2 className="font-display text-sm font-semibold text-red-950">
+                Não foi possível concluir a geração
+              </h2>
+              <p className="text-xs sm:text-sm text-red-800">{apiError}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => executeAgent(lastRequestedTopic || concept)}
+            className="min-h-[42px] inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-red-900 text-white text-xs font-medium hover:bg-red-800 shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Tentar novamente</span>
+          </button>
+        </section>
+      )}
+
+      {/* Result View */}
+      {result && !generating && (
+        <div className="space-y-4">
+          {(loadedFromCache || classicStudioSlug) && (
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-700">
+              {loadedFromCache ? (
+                <div className="flex items-center gap-2">
+                  <BookmarkCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>
+                    Carregado diretamente dos seus estudos salvos (zero chamadas extras à API).
+                  </span>
+                </div>
+              ) : (
+                <span>Explicação gerada sob medida pelo Agente Tutor Visual.</span>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                {loadedFromCache && (
+                  <button
+                    type="button"
+                    onClick={() => executeAgent(result.titulo)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 font-medium hover:bg-slate-50"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Gerar nova versão</span>
+                  </button>
+                )}
+                {classicStudioSlug && (
+                  <Link
+                    to={`/assunto/${classicStudioSlug}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white font-medium hover:bg-slate-800"
+                  >
+                    <span>Abrir Simulador Interativo Clássico</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
+
+          <TutorExplanationView data={result} />
+        </div>
       )}
     </div>
   );

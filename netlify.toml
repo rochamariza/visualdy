@@ -8,6 +8,12 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# Rota para o Agente Tutor Visual (Netlify Function)
+[[redirects]]
+  from = "/api/tutor-agent"
+  to = "/.netlify/functions/tutor-agent"
+  status = 200
+
 # Rota para o Gerador Visual (Netlify Function)
 [[redirects]]
   from = "/api/visual-engine/generate"
