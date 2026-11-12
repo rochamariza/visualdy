@@ -225,4 +225,4 @@ No painel do Netlify, basta configurar `GEMINI_API_KEY` em **Site configuration 
 
 ## 📄 Licença
 
-Distribuído sob a licença **Apache 2.0**. Consulte o arquivo de licença para mais informações.
+Copyright (c) 2026 **Mariza Rocha**. Todos os direitos reservados — código disponibilizado apenas para visualização e avaliação, sendo vedada a cópia, modificação, distribuição ou uso sem autorização prévia por escrito (veja [LICENSE](./LICENSE)).
